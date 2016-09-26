@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import sqlite.SQLiteJDBC;
+import sqlite.DB;
 
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
@@ -80,7 +80,7 @@ public class UDPThread implements Runnable {
 				
 				//收到握手请求后，返回本地所拥有的报文片段，并进行握手响应
 				else if(action.equals(Constant.ACTION_P2P_HANDSHAKE_REQUEST)) {
-					List<Piece> pieces = SQLiteJDBC.getPiecesByContentHash(contentHash);
+					List<Piece> pieces = DB.getPiecesByContentHash(contentHash);
 					submitP2PhandShakeResponse(ds, contentHash, pieces, ds.getInetAddress().getHostName(), ds.getPort());
 				} 
 				
