@@ -64,7 +64,7 @@ public class UDPThread implements Runnable {
 				String contentHash = json.getString(Constant.CONTENT_HASH);
 				String action = json.getString(Constant.ACTION);
 				
-				//心跳响应
+				//Tracker返回Peer的UDP心跳响应，内容包含Peer的公网IP地址和端口，Peer可以依据此信息判断自己的网络类型（如是否为NAT，即PubIP不等于LocalIP，暂时不适用）
 				if(action.equals(Constant.ACTION_HEARTBEAT_RESPONSE)) {
 					
 				} 
@@ -99,14 +99,17 @@ public class UDPThread implements Runnable {
 					if(total == current) {
 						//文件总大小（单位：kb）
 						int size = 10000;
+						//进行视频拼接，得到需要请求的视频片段
+						List<Piece> resultPieces = generateFinalPieces(mapPiece.get(contentHash), size, ds, contentHash);
+						
+						//拼接完成后将记录从mapPiece中删除
+						mapPiece.remove(contentHash);
+						
 						//依次发送数据请求
-						//
-						//
-						//
-						//
-						//
-						//
-						//
+						for(Piece p : resultPieces) {
+							submitP2PPieceRequest(ds, contentHash, p.getOffset(), p.getLength(), p.getPeer().getUdpIp(), p.getPeer().getUdpPort());
+						}
+						
 						//请求发送完毕后，将此任务从两个map中移走
 						mapTotal.remove(contentHash);
 						mapCurrent.remove(contentHash);
@@ -265,24 +268,6 @@ public class UDPThread implements Runnable {
 		}
 	}
 	
-	public static void main(String[] args) {
-		try {
-			DatagramSocket ds = new DatagramSocket();
-			byte[] buf = new byte[1024];
-			DatagramPacket rp = new DatagramPacket(buf, 1024);
-			boolean isEnd = false;
-			while (!isEnd) {
-				ds.receive(rp);
-				// 取出信息
-				String content = new String(rp.getData(), 0, rp.getLength());
-				System.out.println("-------------" + content);
-			}
-			ds.close();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-	
 	public void makeHole(DatagramSocket ds, String targetPeerIP, int targetPeerPort) {
 		try {
 			JSONObject json = new JSONObject();
@@ -293,5 +278,117 @@ public class UDPThread implements Runnable {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public static void main(String[] args) {
+		List<Piece> pieces = new ArrayList<Piece>();
+		String content = "123";
+		Piece p = new Piece();
+		
+		p.setContentHash(content);
+		p.setOffset(100);
+		p.setLength(100);
+		pieces.add(p);
+
+		p.setContentHash(content);
+		p.setOffset(300);
+		p.setLength(100);
+		pieces.add(p);
+
+		p.setContentHash(content);
+		p.setOffset(500);
+		p.setLength(100);
+		pieces.add(p);
+		
+		p.setContentHash(content);
+		p.setOffset(700);
+		p.setLength(100);
+		pieces.add(p);
+		
+		System.out.println(pieces);
+	}
+	
+	/**
+	 * ###########视频拼接算法#############
+	 * 1.找出最长的一段数据，采用
+	 * 
+	 * ###################################
+	 * @param sourcePieces peer提供的数据片段
+	 * @param size 文件大小
+	 * @return 最终需要请求的数据片段
+	 */
+	public List<Piece> generateFinalPieces(List<Piece> sourcePieces, int size, DatagramSocket ds, String contentHash) {
+		List<Piece> finalPieces = new ArrayList<Piece>();
+		int offset = 0;
+		int end = 0;
+		
+		while (end < size) {
+			//去list中找offset开始的片段
+			Piece p = getLargestPiece(offset, sourcePieces);
+			//如果片段不存在，就去cdn中下载，下载的范围是：开始：offset，结束：list中所有大于当前offset的片段中，offset最小的那个
+			if (p == null) {
+				int originalOffset = offset;
+				Piece nextPiece = getNearestPiece(offset, sourcePieces);
+				if (nextPiece == null) {
+					downloadFromCDN("url", offset, size);
+					end = size;
+				} else {
+					downloadFromCDN("url", originalOffset, offset);
+					end = offset;
+				}
+			} else {
+				finalPieces.add(p);
+				end = p.getLength() + offset;
+			}
+		}
+		
+		for(Piece p : finalPieces) {
+			submitP2PPieceRequest(ds, contentHash, p.getOffset(), p.getLength(), p.getPeer().getUdpIp(), p.getPeer().getUdpPort());
+		}
+		return finalPieces;
+	}
+	
+	/**
+	 * 获取某起点开始的最大的Piece片段
+	 * @param offset 开始位置
+	 * @param pieces 候选piece
+	 * @return
+	 */
+	public Piece getLargestPiece(int offset, List<Piece> pieces) {
+		int size = 0;
+		Piece resultPiece = null;
+		for(Piece p : pieces) {
+			int position = p.getOffset() + p.getLength();
+			if(p.getOffset() <= offset && position > offset) {
+				int tempSize = position - offset;
+				if(tempSize > size) {
+					size = tempSize;
+					resultPiece = p;
+				}
+			}
+		}
+		resultPiece.setOffset(offset);
+		offset = offset + size;
+		return resultPiece;
+	}
+	
+	
+	public Piece getNearestPiece(int offset, List<Piece> pieces) {
+		Piece resultPiece = null;
+		int minOffset = 999999999;
+		for(Piece p : pieces) {
+			if(p.getOffset() > offset && minOffset > p.getOffset()) {
+				resultPiece = p;
+				minOffset = p.getOffset();
+			}
+		}
+		if(resultPiece != null) {
+			offset = resultPiece.getOffset();
+		}
+		return resultPiece;
+	}
+	
+	public void downloadFromCDN(String url, int offset, int length) {
+		
 	}
 }
