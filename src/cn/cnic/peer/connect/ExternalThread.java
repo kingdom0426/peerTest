@@ -21,6 +21,7 @@ public class ExternalThread implements Runnable {
 	 * 启动一个http server，来监听播放器发来的get请求
 	 */
 	public void run() {
+		System.out.println("已启动监控线程，用于监控播放器发来的http请求");
 		try {
 			HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 8765), 0);
 			server.createContext("/download",new MyResponseHandler());
@@ -40,7 +41,7 @@ public class ExternalThread implements Runnable {
             httpExchange.sendResponseHeaders(HttpStatus.SC_OK, responseString.length());    
             OutputStream os = httpExchange.getResponseBody();    
             os.write(responseString.getBytes());    
-            os.close();  
+            os.close();
         }
     }
 }

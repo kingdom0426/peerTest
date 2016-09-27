@@ -15,8 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import sqlite.DB;
-
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 import cn.cnic.peer.cons.Constant;
@@ -44,6 +42,7 @@ public class UDPThread implements Runnable {
 	}
 	
 	public void run() {
+		System.out.println("已启动UDP线程，用于PEER之间进行通信");
 		try {
 			DatagramSocket ds = new DatagramSocket(Constant.TRACKER_UDP_PORT);
 

@@ -1,17 +1,18 @@
 package cn.cnic.peer.connect;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.protocol.HTTP;
 
 import net.sf.json.JSONObject;
 import cn.cnic.peer.cons.Constant;
 
 public class UploadInfoThread implements Runnable {
-	private BufferedWriter writer;
 	private String peerID;
 	
-	public UploadInfoThread(BufferedWriter writer, String peerID) {
-		this.writer = writer;
+	public UploadInfoThread(String peerID) {
 		this.peerID = peerID;
 	}
 
@@ -37,6 +38,7 @@ public class UploadInfoThread implements Runnable {
 			submitPieceDelay("1", "1", "1");
 			submitServiceDelay("1", "1", "1");
 			submitVolume("1", "1", "1", "1", "1");
+			submitCPUUseInfo();
 		}
 	}
 	
@@ -57,7 +59,7 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.PEER_CNT, peerCnt + "");
 		json.put(Constant.TIME_START, timeStart);
 		json.put(Constant.TIME_END, timeEnd);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/peer/taskpeercnt");
 	}
 	
 	/**
@@ -75,7 +77,7 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.NAT_SUCCESS_RATE, NATSuccessRate);
 		json.put(Constant.TIME_START, timeStart);
 		json.put(Constant.TIME_END, timeEnd);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/peer/natsuccrate");
 	}
 	
 	/**
@@ -92,7 +94,7 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.CONTENT_HASH, contentHash);
 		json.put(Constant.SERVICE_DELAY, serviceDelay);
 		json.put(Constant.LOG_TIME, logTime);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/peer/schedulingdelay");
 	}
 	
 	/**
@@ -109,7 +111,7 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.CONTENT_HASH, contentHash);
 		json.put(Constant.PIECE_DELAY, pieceDelay);
 		json.put(Constant.LOG_TIME, logTime);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/peer/slicedelay");
 	}
 	
 	/**
@@ -130,7 +132,7 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.DOWNLOAD_VOLUME, downloadVolume);
 		json.put(Constant.TIME_START, timeStart);
 		json.put(Constant.TIME_END, timeEnd);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/peer/volume");
 	}
 	
 	/**
@@ -151,7 +153,7 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.DOWNLOAD_PEAK_RATE, downloadPeakRate);
 		json.put(Constant.TIME_START, timeStart);
 		json.put(Constant.TIME_END, timeEnd);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/peer/peakrate");
 	}
 	
 	/**
@@ -172,14 +174,26 @@ public class UploadInfoThread implements Runnable {
 		json.put(Constant.TOTAL_STORAGE, totalStorage);
 		json.put(Constant.AVAILABLE_STORAGE, availableStorage);
 		json.put(Constant.LOG_TIME, logTime);
-		send(json);
+		send(json, Constant.TRACKER_IP + "/api/device/disk");
 	}
 	
-	private void send(JSONObject json) {
+	/**
+	 * Peer节点CPU、内存占用率
+	 */
+	private void submitCPUUseInfo() {
+		
+	}
+	
+	private void send(JSONObject json, String url) {
 		try {
-			writer.write(json.toString());
-			writer.flush();
-		} catch (IOException e) {
+			DefaultHttpClient client = new DefaultHttpClient();
+			HttpPost post = new HttpPost(url);
+			StringEntity entity = new StringEntity(json.toString());
+			entity.setContentType("text/json");
+			entity.setContentEncoding(new BasicHeader(HTTP.CONTENT_TYPE, "application/json"));
+			post.setEntity(entity);
+			client.execute(post);
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}

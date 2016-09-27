@@ -20,12 +20,12 @@ public class Main {
 	 */
 	public void startClient(String peerID) {
 		
-		//启动tcp连接tracker，用于与tracker通信
+		//启动TCP连接tracker，用于与tracker通信
 		TCPThread tcp = new TCPThread(peerID);
 		Thread t1 = new Thread(tcp);
 		t1.start();
 		
-		//启动udp线程，用于peer间数据通信
+		//启动UDP线程，用于peer间数据通信
 		UDPThread udp = new UDPThread(peerID);
 		Thread t3 = new Thread(udp);
 		t3.start();

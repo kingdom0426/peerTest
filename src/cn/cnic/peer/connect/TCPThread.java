@@ -9,8 +9,6 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.sun.xml.internal.bind.v2.runtime.reflect.opt.Const;
-
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 
@@ -39,10 +37,11 @@ public class TCPThread implements Runnable {
 	}
 
 	public void run() {
+		System.out.println("已启动TCP线程，用于与TRACKER沟通");
 		
 		try {
 			//启动上传信息线程，周期性上传数据
-			new Thread(new UploadInfoThread(writer, peerID)).start();
+			new Thread(new UploadInfoThread(peerID)).start();
 			
 			//不断获取tracker发来的数据
 			boolean isEnd = false;
