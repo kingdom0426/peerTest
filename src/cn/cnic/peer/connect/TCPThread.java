@@ -72,7 +72,7 @@ public class TCPThread implements Runnable {
 							UDPThread.mapCurrent.put(json.getString(Constant.CONTENT_HASH), 0);
 						}
 						
-						//如果本地不存在，就从cdn中下载
+						//如果局域网中不存在，就从cdn中下载
 						else {
 							new DownloadThread(json.getString(Constant.URL_HASH), Constant.SAVE_PATH, 5);
 						}

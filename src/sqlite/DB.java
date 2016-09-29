@@ -8,6 +8,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import merge.Merge;
+
 import cn.cnic.peer.entity.Piece;
 
 public class DB {
@@ -24,7 +26,7 @@ public class DB {
 		}
 		return conn;
 	}
-
+	
 	public static void closeConnection() {
 		try {
 			if (null != conn) {
@@ -38,7 +40,7 @@ public class DB {
 		}
 	}
 	
-	public void insertPiece(Piece p) {
+	public static void insertPiece(Piece p) {
 		try {
 			Connection conn = DB.openConnection();
 			String sql = "INSERT INTO ts (contentHash,offset,length) VALUES (?,?,?);"; 
@@ -54,7 +56,7 @@ public class DB {
 		}
 	}
 	
-	public List<Piece> getPiecesByContentHash(String contentHash) {
+	public static List<Piece> getPiecesByContentHash(String contentHash) {
 		List<Piece> pieces = new ArrayList<Piece>();
 		try {
 			Connection conn = DB.openConnection();
@@ -76,5 +78,34 @@ public class DB {
 			e.printStackTrace();
 		}
 		return pieces;
+	}
+	
+	public static List<Piece> deletePiecesByContentHash(String contentHash) {
+		List<Piece> pieces = new ArrayList<Piece>();
+		try {
+			Connection conn = DB.openConnection();
+			String sql = "delete FROM ts where contentHash = ?;";
+			PreparedStatement stmt = conn.prepareStatement(sql);
+			stmt.setString(1, contentHash);
+			stmt.executeUpdate();
+			stmt.close();
+			DB.closeConnection();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return pieces;
+	}
+	
+	public static void updatePiece(String contentHash, int offset, int length) {
+		Piece p = new Piece();
+		p.setContentHash(contentHash);
+		p.setLength(length);
+		p.setOffset(offset);
+		List<Piece> pieces = DB.getPiecesByContentHash(contentHash);
+		List<Piece> newPieces = new Merge().merge(pieces);
+		deletePiecesByContentHash(contentHash);
+		for(Piece piece : newPieces) {
+			insertPiece(piece);
+		}
 	}
 }

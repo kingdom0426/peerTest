@@ -15,6 +15,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import sqlite.DB;
+
+import merge.Merge;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 import cn.cnic.peer.cons.Constant;
@@ -140,10 +143,20 @@ public class UDPThread implements Runnable {
 				
 				//接收到对端peer传来的数据相应后
 				else if(action.equals(Constant.ACTION_P2P_PIECE_RESPONSE)) {
-					File f = new File("C:/video/1.3gp");
+					
+					//以contentHash作为文件名，如果不存在，就创建
+					File f = new File(Constant.SAVE_PATH + contentHash);
+					if(!f.exists()) {
+						f.createNewFile();
+					}
+					
+					//将数据写入文件中
 					DataOutputStream fileOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(f)));
 					fileOut.write(json.get(Constant.DATA).toString().getBytes(), (Integer)json.get(Constant.DATA_OFFSET), (Integer)json.get(Constant.DATA_LENGTH));
 					fileOut.close();
+					
+					//更新本地数据库中的记录
+					DB.updatePiece(contentHash, (Integer)json.get(Constant.DATA_OFFSET), (Integer)json.get(Constant.DATA_LENGTH));
 				} 
 				
 				//其他
@@ -279,34 +292,6 @@ public class UDPThread implements Runnable {
 		}
 	}
 	
-	public static void main(String[] args) {
-		List<Piece> pieces = new ArrayList<Piece>();
-		String content = "123";
-		Piece p = new Piece();
-		
-		p.setContentHash(content);
-		p.setOffset(100);
-		p.setLength(100);
-		pieces.add(p);
-
-		p.setContentHash(content);
-		p.setOffset(300);
-		p.setLength(100);
-		pieces.add(p);
-
-		p.setContentHash(content);
-		p.setOffset(500);
-		p.setLength(100);
-		pieces.add(p);
-		
-		p.setContentHash(content);
-		p.setOffset(700);
-		p.setLength(100);
-		pieces.add(p);
-		
-		System.out.println(pieces);
-	}
-	
 	/**
 	 * ###########视频拼接算法#############
 	 * 1.找出最长的一段数据，采用
@@ -317,74 +302,25 @@ public class UDPThread implements Runnable {
 	 * @return 最终需要请求的数据片段
 	 */
 	public List<Piece> generateFinalPieces(List<Piece> sourcePieces, int size, DatagramSocket ds, String contentHash) {
-		List<Piece> finalPieces = new ArrayList<Piece>();
-		int offset = 0;
-		int end = 0;
-		
-		while (end < size) {
-			//去list中找offset开始的片段
-			Piece p = getLargestPiece(offset, sourcePieces);
-			//如果片段不存在，就去cdn中下载，下载的范围是：开始：offset，结束：list中所有大于当前offset的片段中，offset最小的那个
-			if (p == null) {
-				int originalOffset = offset;
-				Piece nextPiece = getNearestPiece(offset, sourcePieces);
-				if (nextPiece == null) {
-					downloadFromCDN("url", offset, size);
-					end = size;
+		//确定需从CDN上下载的片段list：先获取到本地局域网中的片段并集，剩下的就是需要从CDN上获取的
+		List<Piece> existPieces = new Merge().merge(sourcePieces);
+		for(int i = 0; i < existPieces.size(); i++) {
+			if(existPieces.get(i).getOffset() != 0) {
+				if(i == 0) {
+					downloadFromCDN("", 0, existPieces.get(i).getOffset());
 				} else {
-					downloadFromCDN("url", originalOffset, offset);
-					end = offset;
+					downloadFromCDN("", existPieces.get(i - 1).getOffset() + existPieces.get(i - 1).getLength(), existPieces.get(i).getOffset());
 				}
-			} else {
-				finalPieces.add(p);
-				end = p.getLength() + offset;
 			}
+		}
+		Piece lastPiece = existPieces.get(existPieces.size() - 1);
+		int end = lastPiece.getOffset() + lastPiece.getLength();
+		if(end < size) {
+			downloadFromCDN("", end, size - end);
 		}
 		
-		for(Piece p : finalPieces) {
-			submitP2PPieceRequest(ds, contentHash, p.getOffset(), p.getLength(), p.getPeer().getUdpIp(), p.getPeer().getUdpPort());
-		}
-		return finalPieces;
-	}
-	
-	/**
-	 * 获取某起点开始的最大的Piece片段
-	 * @param offset 开始位置
-	 * @param pieces 候选piece
-	 * @return
-	 */
-	public Piece getLargestPiece(int offset, List<Piece> pieces) {
-		int size = 0;
-		Piece resultPiece = null;
-		for(Piece p : pieces) {
-			int position = p.getOffset() + p.getLength();
-			if(p.getOffset() <= offset && position > offset) {
-				int tempSize = position - offset;
-				if(tempSize > size) {
-					size = tempSize;
-					resultPiece = p;
-				}
-			}
-		}
-		resultPiece.setOffset(offset);
-		offset = offset + size;
-		return resultPiece;
-	}
-	
-	
-	public Piece getNearestPiece(int offset, List<Piece> pieces) {
-		Piece resultPiece = null;
-		int minOffset = 999999999;
-		for(Piece p : pieces) {
-			if(p.getOffset() > offset && minOffset > p.getOffset()) {
-				resultPiece = p;
-				minOffset = p.getOffset();
-			}
-		}
-		if(resultPiece != null) {
-			offset = resultPiece.getOffset();
-		}
-		return resultPiece;
+		//从peer节点中下载的片段list
+		return new Merge().mergePeer(sourcePieces);
 	}
 	
 	public void downloadFromCDN(String url, int offset, int length) {
